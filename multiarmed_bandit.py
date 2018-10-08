@@ -47,7 +47,7 @@ class EpsilonGreedyBandit(MultiArmedBandit):
 
         return arm
 
-    def update(self, arm, reward):
+    def update(self, arm, reward, context):
 
         # update expected reward for the arm
         # if we have never used this arm before
@@ -99,17 +99,16 @@ class LinUCB(MultiArmedBandit):
             self.seen[arm] = True
 
         # generate params matrix
-        theta = np.matmul(inv(self.A[arm]), self.B[arm])
+        theta = inv(self.A[arm]).dot(self.B[arm])
 
         # run ridge regression
-        p = np.matmul(theta.T, context) + self.alpha*np.sqrt(\
-                np.matmul( np.matmul(context.T, inv(self.A[arm])), context))
+        p = theta.dot(context) + self.alpha*np.sqrt( context.dot(inv(self.A[arm]).dot(context)) )
 
         return p
 
     def update(self, arm, reward, context):
         context = np.split(context, self.n_arms)[arm]
-        self.A[arm] = self.A[arm] + np.matmul(context, context.T)
+        self.A[arm] += np.outer(context, context)
         self.B[arm] += reward*context
 
 
@@ -130,12 +129,12 @@ def off_policy_train(mab, arms, rewards, contexts, T):
         
         arm = int(arms[j])
         reward = rewards[j]
-        context = contexts[j,:]
+        context = contexts[j]
 
         if arm == mab.choose(j, context):
             mab.update(arm, reward, context)
             history.append(reward)
-                    
+
     return history
 
 
@@ -143,8 +142,11 @@ if __name__ == "__main__":
 
     arms, rewards, contexts = read_data()
 
-    mab = LinUCB(10, 10, 1.0)
-    off_policy_train(mab, arms, rewards, contexts, None)
+    #mab = EpsilonGreedyBandit(10, 0.05)
+    mab = LinUCB(10, 10, 0.80)
+    history = off_policy_train(mab, arms, rewards, contexts, None)
+    #print(history)
+    print(np.mean(history))
 
     """
     env = SimpleEnvironment(3, [100, 5.8, 5.5], [0.5, 0.5, 0.5])

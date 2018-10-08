@@ -87,7 +87,8 @@ class LinUCB(MultiArmedBandit):
 
     def choose(self, t, context):
         contexts = np.split(context, self.n_arms)
-        Q = [self._estimate_arm_value(i, contexts[i]) for i in range(self.n_arms)]
+        Q = [self._estimate_arm_value(i, contexts[i])\
+                for i in range(self.n_arms)]
         return np.argmax(Q)
 
     def _estimate_arm_value(self, arm, context):
@@ -98,11 +99,15 @@ class LinUCB(MultiArmedBandit):
             self.B[arm] = np.zeros(shape=(self.n_dims))
             self.seen[arm] = True
 
+        A = self.A[arm]
+        B = self.B[arm]
+
         # generate params matrix
-        theta = inv(self.A[arm]).dot(self.B[arm])
+        theta = np.dot(inv(A), B)
 
         # run ridge regression
-        p = theta.dot(context) + self.alpha*np.sqrt( context.dot(inv(self.A[arm]).dot(context)) )
+        p = np.dot(theta.T, context) +\
+                self.alpha*np.sqrt( np.dot(context.T, inv(A)).dot(context) )
 
         return p
 
@@ -143,7 +148,7 @@ if __name__ == "__main__":
     arms, rewards, contexts = read_data()
 
     #mab = EpsilonGreedyBandit(10, 0.05)
-    mab = LinUCB(10, 10, 0.80)
+    mab = LinUCB(10, 10, 0.01)
     history = off_policy_train(mab, arms, rewards, contexts, None)
     #print(history)
     print(np.mean(history))

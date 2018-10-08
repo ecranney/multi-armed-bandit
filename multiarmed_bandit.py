@@ -130,6 +130,7 @@ def off_policy_train(mab, arms, rewards, contexts, T):
     n_arms = np.max(arms)
     history = []
 
+    t = 0
     for j in range(len(arms)):
         
         arm = int(arms[j])
@@ -139,6 +140,10 @@ def off_policy_train(mab, arms, rewards, contexts, T):
         if arm == mab.choose(j, context):
             mab.update(arm, reward, context)
             history.append(reward)
+            t += 1
+        
+        if t is None or t >= T-1:
+            return history
 
     return history
 
@@ -148,23 +153,23 @@ if __name__ == "__main__":
     arms, rewards, contexts = read_data()
 
     #mab = EpsilonGreedyBandit(10, 0.05)
-    mab = LinUCB(10, 10, 0.01)
-    history = off_policy_train(mab, arms, rewards, contexts, None)
-    #print(history)
+    mab = LinUCB(10, 10, 0.015)
+    history = off_policy_train(mab, arms, rewards, contexts, 800)
     print(np.mean(history))
 
-    """
-    env = SimpleEnvironment(3, [100, 5.8, 5.5], [0.5, 0.5, 0.5])
-    bandit = EpsilonGreedyBandit(3, 0.15)
+    # grid-search for alpha
+    alphas = []
+    scores = []
+    alpha = 0.01
+    while alpha < 1.00:
+        mab = LinUCB(10, 10, alpha)
+        alphas.append(alpha)
+        score = np.mean(off_policy_train(mab, arms, rewards, contexts, 800))
+        print(score)
+        scores.append(score)
+        alpha += 0.01
 
-    arms, r, contexts = read_data()
-    print(arms.shape)
-    print(r.shape)
-    print(contexts.shape)
-
-    for i in range(1000):
-        #arm = bandit.choose()
-        bandit.update(arm, env.step(arm))
-        print(bandit.Q)
-
-    """
+    # find the alpha with the maximum
+    i = np.argmax(score)
+    print("max score:", scores[i])
+    print("optimal alpha:", alphas[i])

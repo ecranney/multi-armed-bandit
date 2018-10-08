@@ -1,5 +1,5 @@
 import numpy as np
-from np.linalg import inv
+from numpy.linalg import inv
 from abc import ABC, abstractmethod
 
 from environment import *
@@ -73,101 +73,91 @@ class LinUCB(MultiArmedBandit):
 
         # number of arms
         self.n_arms = n_arms
+        self.n_dims = n_dims
 
         # hyperparameter governing exploit/explore tradeoff
         self.alpha = alpha
 
         # the A matrix and B vectors used in ridge regression for each arm
         self.A = np.zeros(shape=(n_arms, n_dims, n_dims))
-        self.B = np.zeros(shape=(n_arms, 1))
+        self.B = np.zeros(shape=(n_arms, n_dims))
 
         # keep track of which actions we've already used
-        self.seen = np.full(shape=(n_arms), False)
+        self.seen = np.full(shape=(n_arms), fill_value=False)
 
     def choose(self, t, context):
-        Q = [_estimate_arm_value(i, context[:,i]) for i in range(self.n_arms)]
+        contexts = np.split(context, self.n_arms)
+        Q = [self._estimate_arm_value(i, contexts[i]) for i in range(self.n_arms)]
         return np.argmax(Q)
 
-    def _estimate_arm_value(arm, context):
+    def _estimate_arm_value(self, arm, context):
 
         # if arm has not been seen
         if not self.seen[arm]:
             self.A[arm] = np.identity(self.n_dims)
-            self.B[arm] = np.zeros(shape=(self.n_dims, 1))
+            self.B[arm] = np.zeros(shape=(self.n_dims))
+            self.seen[arm] = True
 
         # generate params matrix
         theta = np.matmul(inv(self.A[arm]), self.B[arm])
 
         # run ridge regression
         p = np.matmul(theta.T, context) + self.alpha*np.sqrt(\
-                np.matmul(context.T, inv(self.A[arm])) )
+                np.matmul( np.matmul(context.T, inv(self.A[arm])), context))
 
         return p
 
-    def update(self, arm, reward):
-        self.A[arm] += np.matmul(context, context.T)
+    def update(self, arm, reward, context):
+        context = np.split(context, self.n_arms)[arm]
+        self.A[arm] = self.A[arm] + np.matmul(context, context.T)
         self.B[arm] += reward*context
 
 
+def read_data():
+    data = np.loadtxt("melb/dataset.txt")
+    arms = data[:,0]
+    rewards = data[:,1]
+    contexts = data[:, 2:]
+    return arms, rewards, contexts
+
+
+def off_policy_train(mab, arms, rewards, contexts, T):
+
+    n_arms = np.max(arms)
+    history = []
+
+    for j in range(len(arms)):
+        
+        arm = int(arms[j])
+        reward = rewards[j]
+        context = contexts[j,:]
+
+        if arm == mab.choose(j, context):
+            mab.update(arm, reward, context)
+            history.append(reward)
+                    
+    return history
+
+
 if __name__ == "__main__":
+
+    arms, rewards, contexts = read_data()
+
+    mab = LinUCB(10, 10, 1.0)
+    off_policy_train(mab, arms, rewards, contexts, None)
+
+    """
     env = SimpleEnvironment(3, [100, 5.8, 5.5], [0.5, 0.5, 0.5])
     bandit = EpsilonGreedyBandit(3, 0.15)
 
+    arms, r, contexts = read_data()
+    print(arms.shape)
+    print(r.shape)
+    print(contexts.shape)
+
     for i in range(1000):
-        arm = bandit.choose()
+        #arm = bandit.choose()
         bandit.update(arm, env.step(arm))
         print(bandit.Q)
 
-"""
-class MAB(ABC):
-
-    @abstractmethod
-    def choose_arm(play, context):
-        pass
-
-    @abstractmethod
-    def update_expected_rewards(reward, arm, context):
-        pass
-
-
-class EpsilonGreedyBandit(MAB):
-
-    def __init__(self, narms, epsilon):
-        pass
-
-    def choose_arm(self, context):
-        pass
-
-    def update_expected_rewards(reward, arm, context):
-        pass
-
-
-class UpperConfidenceBoundBandit(MAB):
-
-    def __init__(self, narms, rho):
-        
-        # number of arms
-        self.narms = narms
-
-        # relative importance of exploration
-        self.rho = rho
-
-        # average rewards, action execution counts
-        self.mu = np.full(shape=(narms), fill_value=np.inf)
-        self.n = np.zeros(shape=(narms))
-
-        # current timestep
-        self.t = 0
-
-    def choose_arm(self, context):
-        
-        # choose the action that maximizes q = mu + sqrt(rho*log(t)/n)
-        q = self.mu + np.sqrt(self.rho * np.log(self.t) / n )
-
-        # return the argmax
-        return np.argmax(q)
-
-    def update_expected_reward(reward, arm, context):
-        
-        pass
-"""
+    """

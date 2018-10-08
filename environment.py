@@ -14,7 +14,7 @@ class SimpleEnvironment:
         Execute the action associated with the specified arm.
         """
         # sample from the given probability distribution
-        reward = np.random.normal(mu[arm], sigma[arm])
+        reward = np.random.normal(self.mu[arm], self.sigma[arm])
         return reward
 
 
